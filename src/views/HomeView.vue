@@ -42,7 +42,6 @@ let animationFrame: any; // 动画
 
 let water: any; // 水面
 let stageMesh: any; // 舞台Mesh
-let cubeCamera: any; //
 
 function init() {
   initRender();
@@ -114,7 +113,7 @@ function initRender() {
 // 渲染场景
 function initScene() {
   scene = new THREE.Scene(); // 场景
-  // scene.background = new THREE.Color('#000');
+  scene.background = new THREE.Color('#000');
   // scene.fog = new THREE.Fog('#000', 20, 100);
 }
 
@@ -173,13 +172,13 @@ function initCamera() {
 // 初始加载管理器
 function initManager() {
   // 加载器配置
-  let long = 40;
-  let y = 0;
+  let long = 10;
+  let y = 10;
   // 加载器公共事件
   let managerEvent = (name: string, manager: any) => {
     manager.onStart = (url: string, itemsLoaded: boolean, itemsTotal: number) => {
-      y += 10;
-      let geometry = new THREE.BoxGeometry(long, 2, 2, 4, 4);
+      // y += 10;
+      let geometry = new THREE.BoxGeometry(long, 1, 1, 4, 4);
       let material = new THREE.MeshStandardMaterial({
         color: `rgb(125, 255, 255)`,
         roughness: 0,
@@ -223,7 +222,11 @@ let personModelMesh: any;
 // 初始化加载器
 function initLoader() {
   loader = new MMDLoader(managerBox.MMDManager);
+  loadStageModel();
+  loadPersonModel();
+}
 
+function loadStageModel() {
   const stageUrl = '/model/夜月蓝/场景.pmx';
   // const stageUrl = '/model/room/Stage0514.pmx';
   loader.load(stageUrl, (mmd: any) => {
@@ -268,6 +271,12 @@ function initLoader() {
     stageMesh = mmd;
     // scene.add(mmd);
   });
+}
+
+function loadPersonModel() {
+  if (scene.children.includes(personModelMesh)) {
+    scene.remove(personModelMesh);
+  }
 
   // const modelUrl = '/model/huahuo/花火_无面具.pmx'
   // const modelUrl = '/model/huangquan/星穹铁道—黄泉（轴修复）.pmx'
@@ -303,20 +312,23 @@ function initLoader() {
       personModelMesh = mesh;
 
       MMDHelper = new MMDAnimationHelper();
-      loadAnimationDance();
-      // loader.loadAnimation('/animate/站立.vmd', mesh, (modelAnimation: any) => {
-      //   modelAnimation.name = 'stand';
-      //   MMDHelper.add(mesh, {
-      //     animation: modelAnimation,
-      //     physics: true,
-      //   });
-      //   MMDCanPlay = true;
-      //   scene.add(mesh);
-      // });
+
+      switch (guiParam?.action) {
+        case 'stand':
+          loadAnimationStand();
+          break;
+
+        case 'dance':
+          loadAnimationDance();
+          break;
+
+        default:
+          loadAnimationStand();
+          break;
+      }
     },
     (xhr: any) => {
       // objBox.MMDManager.scale.x = xhr.loaded / xhr.total;
-      console.log(xhr.loaded / xhr.total);
     },
     (err: any) => {
       console.error(err);
@@ -430,15 +442,15 @@ function guiMMDSetting() {
   MMDSetting.add(guiParam, 'action', actionOptions)
     .name('动作')
     .onChange((value: string) => {
-      console.log(value);
-      switch (value) {
-        case 'stand':
-          MMDHelper.doAnimation('stand');
-          break;
-        case 'dance':
-          loadAnimationDance();
-          break;
-      }
+      loadPersonModel();
+      // switch (value) {
+      //   case 'stand':
+      //     loadAnimationStand();
+      //     break;
+      //   case 'dance':
+      //     loadAnimationDance();
+      //     break;
+      // }
     });
   MMDSetting.add(guiParam, 'play')
     .name('播放（Play）')
@@ -601,6 +613,17 @@ function guiAmbientLightSetting() {
   ambientLightSetting.open();
 }
 
+function loadAnimationStand() {
+  loader.loadAnimation('/animate/站立.vmd', personModelMesh, (modelAnimation: any) => {
+    MMDHelper.add(personModelMesh, {
+      animation: modelAnimation,
+      physics: true,
+    });
+    MMDCanPlay = true;
+    scene.add(personModelMesh);
+  });
+}
+
 // 加载跳舞动作
 function loadAnimationDance() {
   const actionUrl = '/animate/极乐净土.vmd';
@@ -611,7 +634,6 @@ function loadAnimationDance() {
   if (actionUrl) {
     // 载入模型与动画
     loader.loadAnimation(actionUrl, personModelMesh, (modelAnimation: any) => {
-      modelAnimation.name = 'dance';
       MMDHelper.add(personModelMesh, {
         animation: modelAnimation,
         physics: true,
