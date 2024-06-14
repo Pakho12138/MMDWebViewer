@@ -14,6 +14,9 @@ import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { Water } from 'three/examples/jsm/objects/Water';
 import { Reflector } from 'three/examples/jsm/objects/Reflector';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { BloomPass } from 'three/examples/jsm/postprocessing/BloomPass';
 import { onMounted, ref, nextTick, watch, onBeforeUnmount } from 'vue';
 
 const threeRef = ref(null);
@@ -43,6 +46,8 @@ let animationFrame: any; // 动画
 let water: any; // 水面
 let stageMesh: any; // 舞台Mesh
 
+let composer: any; // EffectComposer用于管理后期处理效果
+
 function init() {
   initRender();
   initScene();
@@ -53,11 +58,28 @@ function init() {
   // addWater();
   initObj();
   initLight();
+  initEffectComposer();
   initHelper();
   initStats();
   initOrbitControls();
   initGui();
   updateRenderer();
+}
+
+function initEffectComposer() {
+  // EffectComposer用于管理后期处理效果
+  composer = new EffectComposer(renderer);
+  // RenderPass用于将场景渲染到EffectComposer中
+  const renderPass = new RenderPass(scene, camera);
+  const threshold = 0.8; // 阈值，控制亮度提取的阈值，范围在0到1之间
+  const strength = 15; // 强度，控制泛光的强度，可以根据需要增加或减少
+  const radius = 1; // 模糊半径，控制泛光的模糊程度，可以根据需要增加或减少
+  // BloomPass用于实现泛光效果
+  const bloomPass = new BloomPass(threshold, strength, radius);
+
+  composer.addPass(renderPass);
+  composer.addPass(bloomPass);
+  composer.render();
 }
 
 function addWater() {
@@ -553,7 +575,7 @@ function guiLightSetting() {
       helperBox.spotLightHelper.helper.update();
     });
   lightSetting
-    .add(guiParam, 'intensity', 0, 1.5)
+    .add(guiParam, 'intensity', 0, 3)
     .name('强度（Intensity）')
     .onChange((data: any) => {
       lightBox.spotLight.intensity = data;
@@ -687,8 +709,6 @@ function loadAnimationDance() {
 
 // 更新场景
 function updateRenderer() {
-  animationFrame = requestAnimationFrame(updateRenderer);
-
   const delta = clock.getDelta();
   orbitControls.update(delta);
 
@@ -711,9 +731,11 @@ function updateRenderer() {
   }
 
   renderer.render(scene, camera);
+  composer.render();
   stats.update();
 
   // water.material.uniforms['time'].value += 1.0 / 60.0;
+  animationFrame = requestAnimationFrame(updateRenderer);
 }
 
 function animation() {
