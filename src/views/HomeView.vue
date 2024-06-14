@@ -218,12 +218,12 @@ function initManager() {
   managerEvent('MMDManager', managerBox.MMDManager);
 }
 
-let personModelMesh: any;
+let characterModelMesh: any;
 // 初始化加载器
 function initLoader() {
   loader = new MMDLoader(managerBox.MMDManager);
   loadStageModel();
-  loadPersonModel();
+  loadCharacterModel();
 }
 
 function loadStageModel() {
@@ -273,9 +273,9 @@ function loadStageModel() {
   });
 }
 
-function loadPersonModel() {
-  if (scene.children.includes(personModelMesh)) {
-    scene.remove(personModelMesh);
+function loadCharacterModel() {
+  if (scene.children.includes(characterModelMesh)) {
+    scene.remove(characterModelMesh);
   }
 
   // const modelUrl = '/model/huahuo/花火_无面具.pmx'
@@ -286,7 +286,16 @@ function loadPersonModel() {
   // const modelUrl = '/model/阮·梅/阮·梅1.0.pmx';
   // const modelUrl = '/model/流萤/流萤3.0.pmx';
   // const modelUrl = '/model/藿藿/藿藿4.0.pmx';
-  const modelUrl = '/model/花火/花火3.0.pmx';
+  let modelUrl = '/model/花火/花火3.0.pmx';
+
+  switch (guiParam?.character) {
+    case '花火':
+      modelUrl = '/model/花火/花火3.0.pmx';
+      break;
+    case '三月七':
+      modelUrl = '/model/sanyueqi/三月七 1.0.pmx';
+      break;
+  }
 
   loader.load(
     modelUrl,
@@ -309,7 +318,7 @@ function loadPersonModel() {
         }
       });
 
-      personModelMesh = mesh;
+      characterModelMesh = mesh;
 
       MMDHelper = new MMDAnimationHelper();
 
@@ -400,6 +409,7 @@ function initGui() {
   gui = new GUI(); // 控制台
   guiParam = {
     // MMD设置
+    character: '花火',
     action: 'stand',
     play: playControl.value,
     cameraPlay: true,
@@ -435,6 +445,12 @@ function initGui() {
 // MMD设置
 function guiMMDSetting() {
   let MMDSetting = gui.addFolder('MMD设置');
+  const characterOptions = ['花火', '三月七'];
+  MMDSetting.add(guiParam, 'character', characterOptions)
+    .name('人物')
+    .onChange((value: string) => {
+      loadCharacterModel();
+    });
   const actionOptions = {
     站立: 'stand',
     '跳舞（极乐净土）': 'dance',
@@ -442,7 +458,7 @@ function guiMMDSetting() {
   MMDSetting.add(guiParam, 'action', actionOptions)
     .name('动作')
     .onChange((value: string) => {
-      loadPersonModel();
+      loadCharacterModel();
       // switch (value) {
       //   case 'stand':
       //     loadAnimationStand();
@@ -614,13 +630,13 @@ function guiAmbientLightSetting() {
 }
 
 function loadAnimationStand() {
-  loader.loadAnimation('/animate/站立.vmd', personModelMesh, (modelAnimation: any) => {
-    MMDHelper.add(personModelMesh, {
+  loader.loadAnimation('/animate/站立.vmd', characterModelMesh, (modelAnimation: any) => {
+    MMDHelper.add(characterModelMesh, {
       animation: modelAnimation,
       physics: true,
     });
     MMDCanPlay = true;
-    scene.add(personModelMesh);
+    scene.add(characterModelMesh);
   });
 }
 
@@ -633,13 +649,15 @@ function loadAnimationDance() {
 
   if (actionUrl) {
     // 载入模型与动画
-    loader.loadAnimation(actionUrl, personModelMesh, (modelAnimation: any) => {
-      MMDHelper.add(personModelMesh, {
+    loader.loadAnimation(actionUrl, characterModelMesh, (modelAnimation: any) => {
+      MMDHelper.add(characterModelMesh, {
         animation: modelAnimation,
         physics: true,
       });
       // 载入相机
       if (cameraUrl) {
+        // 重新初始化镜头
+        initCamera();
         loader.loadAnimation(cameraUrl, camera, (cameraAnimation: any) => {
           MMDCamare = cameraAnimation;
           MMDHelper.add(camera, { animation: cameraAnimation });
@@ -654,7 +672,7 @@ function loadAnimationDance() {
           (buffer: any) => {
             audio = new THREE.Audio(listener).setBuffer(buffer);
             MMDHelper.add(audio, { duration: buffer.duration });
-            scene.add(personModelMesh);
+            scene.add(characterModelMesh);
             MMDCanPlay = true;
           },
           null,
