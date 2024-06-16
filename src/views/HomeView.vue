@@ -322,21 +322,41 @@ function loadStageModel() {
 }
 
 function loadCharacterModel() {
+  // 销毁原本人物模型
   if (characterModelMesh && scene.children.includes(characterModelMesh)) {
+    MMDHelper.remove(characterModelMesh);
     scene.remove(characterModelMesh);
+    characterModelMesh.traverse((child: any) => {
+      if (child.material?.length) {
+        child.material.forEach((item: any) => {
+          item.dispose();
+          if (item.map) item.map.dispose();
+        });
+      }
+      if (child.geometry) child.geometry.dispose();
+    });
     characterModelMesh = null;
   }
 
   if (audio) {
     audio.stop();
+    MMDHelper.audio && MMDHelper.remove(audio);
     scene.remove(audio);
     audio = null;
   }
 
   if (MMDHelper) {
+    MMDHelper.camera && MMDHelper.remove(camera);
     // 重新初始化镜头
-    initCamera();
-    initEffectComposer();
+    camera.fov = 75;
+    camera.position.x = 0;
+    camera.position.y = 15;
+    camera.position.z = 25;
+    camera.up.x = 0;
+    camera.up.y = 1;
+    camera.up.z = 0;
+    // 需要调用updateProjectionMatrix方法来使设置生效
+    camera.updateProjectionMatrix();
   }
 
   // const modelUrl = '/model/huahuo/花火_无面具.pmx'
@@ -381,7 +401,9 @@ function loadCharacterModel() {
 
       characterModelMesh = mesh;
 
-      MMDHelper = new MMDAnimationHelper();
+      if (!MMDHelper) {
+        MMDHelper = new MMDAnimationHelper();
+      }
 
       switch (guiParam?.action) {
         case 'stand':
@@ -550,15 +572,19 @@ function guiMMDSetting() {
   MMDSetting.add(guiParam, 'cameraPlay')
     .name('镜头播放（CameraPlay）')
     .onChange((data: any) => {
+      MMDHelper.enabled.cameraAnimation = data;
       if (!data) {
+        // 重新初始化镜头
+        camera.fov = 75;
         camera.position.x = 0;
         camera.position.y = 15;
         camera.position.z = 25;
         camera.up.x = 0;
         camera.up.y = 1;
         camera.up.z = 0;
+        // 需要调用updateProjectionMatrix方法来使设置生效
+        camera.updateProjectionMatrix();
       }
-      MMDHelper.playCamera = data;
     });
   MMDSetting.add(guiParam, 'cameraRotate')
     .name('镜头旋转（CameraRotate）')
@@ -750,10 +776,6 @@ function loadAnimationStand() {
 
 // 加载跳舞动作
 function loadAnimationDance() {
-  // 重新初始化镜头
-  initCamera();
-  initEffectComposer();
-
   const actionUrl = '/animate/极乐净土.vmd';
   // const cameraUrl = '/camera/极乐净土.vmd';
   const cameraUrl = '/camera/極楽净土 镜头 by 永远赤红的幼月.vmd';
