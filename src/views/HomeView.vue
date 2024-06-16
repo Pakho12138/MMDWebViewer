@@ -16,7 +16,11 @@ import { Water } from 'three/examples/jsm/objects/Water';
 import { Reflector } from 'three/examples/jsm/objects/Reflector';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { BloomPass } from 'three/examples/jsm/postprocessing/BloomPass';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+// 伽马校正后处理Shader
+import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader';
 import { onMounted, ref, nextTick, watch, onBeforeUnmount } from 'vue';
 
 const threeRef = ref(null);
@@ -34,7 +38,6 @@ let MMDCamare: any; // MMD照相机轨
 let MMDHelper: any; // MMD照相机轨
 let audio: any;
 let MMDCanPlay: boolean = false;
-let playControl = ref(false);
 let objBox: any = {
   stage: '',
   box: '',
@@ -47,6 +50,7 @@ let water: any; // 水面
 let stageMesh: any; // 舞台Mesh
 
 let composer: any; // EffectComposer用于管理后期处理效果
+let FXAAPass: any; // FXAA抗锯齿
 
 function init() {
   initRender();
@@ -66,20 +70,41 @@ function init() {
   updateRenderer();
 }
 
+let renderPass: any;
+let unrealBloomPass: any;
+
 function initEffectComposer() {
+  composer && composer.dispose();
   // EffectComposer用于管理后期处理效果
   composer = new EffectComposer(renderer);
   // RenderPass用于将场景渲染到EffectComposer中
-  const renderPass = new RenderPass(scene, camera);
-  const threshold = 0.8; // 阈值，控制亮度提取的阈值，范围在0到1之间
-  const strength = 15; // 强度，控制泛光的强度，可以根据需要增加或减少
-  const radius = 1; // 模糊半径，控制泛光的模糊程度，可以根据需要增加或减少
-  // BloomPass用于实现泛光效果
-  const bloomPass = new BloomPass(threshold, strength, radius);
 
+  renderPass && renderPass.dispose();
+  renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
-  composer.addPass(bloomPass);
-  composer.render();
+
+  const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight); // 泛光覆盖场景大小，二维向量类型
+  const strength = 0.5; // bloomStrength 泛光强度，值越大明亮的区域越亮，较暗区域变亮的范围越广
+  const radius = 0.2; // bloomRadius 泛光散发半径
+  const threshold = 0.05; // bloomThreshold 泛光的光照强度阈值，如果照在物体上的光照强度大于该值就会产生泛光，范围在0到1之间
+  // BloomPass用于实现泛光效果
+  unrealBloomPass && unrealBloomPass.dispose();
+  unrealBloomPass = new UnrealBloomPass(resolution, strength, radius, threshold);
+  // unrealBloomPass.renderToScreen = true;
+  // composer.addPass(unrealBloomPass);
+
+  // 抗锯齿
+  // const pixelRatio = renderer.getPixelRatio();
+  // FXAAPass = new ShaderPass(FXAAShader);
+  // FXAAPass.uniforms.resolution.value.set(1 / (window.innerWidth * pixelRatio), 1 / (window.innerHeight * pixelRatio));
+  // FXAAPass .renderToScreen = true;
+  // composer.addPass(FXAAPass);
+
+  // 创建伽马校正通道
+  // const gammaPass = new ShaderPass(GammaCorrectionShader);
+  // composer.addPass(gammaPass);
+
+  // composer.render();
 }
 
 function addWater() {
@@ -130,6 +155,7 @@ function initRender() {
   // 定义gammaOutput和gammaFactor
   renderer.gammaOutput = true;
   renderer.gammaFactor = 2.2; //电脑显示屏的gammaFactor为2.2
+  renderer.autoClear = false;
 }
 
 // 渲染场景
@@ -296,8 +322,21 @@ function loadStageModel() {
 }
 
 function loadCharacterModel() {
-  if (scene.children.includes(characterModelMesh)) {
+  if (characterModelMesh && scene.children.includes(characterModelMesh)) {
     scene.remove(characterModelMesh);
+    characterModelMesh = null;
+  }
+
+  if (audio) {
+    audio.stop();
+    scene.remove(audio);
+    audio = null;
+  }
+
+  if (MMDHelper) {
+    // 重新初始化镜头
+    initCamera();
+    initEffectComposer();
   }
 
   // const modelUrl = '/model/huahuo/花火_无面具.pmx'
@@ -429,11 +468,12 @@ let guiParam: any;
 // 初始控制台
 function initGui() {
   gui = new GUI(); // 控制台
+  gui.title('控制器（Controls）');
   guiParam = {
     // MMD设置
     character: '花火',
     action: 'stand',
-    play: playControl.value,
+    play: false,
     cameraPlay: true,
     cameraRotate: orbitControls.autoRotate,
     loadStageModel: false,
@@ -456,21 +496,31 @@ function initGui() {
     // 环境光设置
     ambientLightColor: lightBox.ambientLight.color.getHex(),
     ambientLightIntensity: lightBox.ambientLight.intensity,
+    // 泛光
+    bloom: false,
+    bloomStrength: unrealBloomPass.strength,
+    bloomRadius: unrealBloomPass.radius,
+    bloomThreshold: unrealBloomPass.threshold,
   };
 
   guiMMDSetting();
   guiHelperSetting();
   guiAmbientLightSetting();
   guiLightSetting();
+  guiEffectComposerSetting();
 }
 
 // MMD设置
 function guiMMDSetting() {
-  let MMDSetting = gui.addFolder('MMD设置');
+  let MMDSetting = gui.addFolder('MMD设置（MMD Setting）');
   const characterOptions = ['花火', '三月七'];
   MMDSetting.add(guiParam, 'character', characterOptions)
     .name('人物')
     .onChange((value: string) => {
+      guiParam.play = false;
+      // 同步更新GUI视图
+      const findControler = MMDSetting.controllers.find((item: any) => item.property == 'play');
+      findControler && findControler.updateDisplay();
       loadCharacterModel();
     });
   const actionOptions = {
@@ -480,20 +530,22 @@ function guiMMDSetting() {
   MMDSetting.add(guiParam, 'action', actionOptions)
     .name('动作')
     .onChange((value: string) => {
+      guiParam.play = false;
+      // 同步更新GUI视图
+      const findControler = MMDSetting.controllers.find((item: any) => item.property == 'play');
+      findControler && findControler.updateDisplay();
       loadCharacterModel();
-      // switch (value) {
-      //   case 'stand':
-      //     loadAnimationStand();
-      //     break;
-      //   case 'dance':
-      //     loadAnimationDance();
-      //     break;
-      // }
     });
   MMDSetting.add(guiParam, 'play')
     .name('播放（Play）')
     .onChange((data: any) => {
-      playControl.value = data;
+      console.log(MMDHelper);
+
+      if (data) {
+        audio && audio.play();
+      } else {
+        audio && audio.pause();
+      }
     });
   MMDSetting.add(guiParam, 'cameraPlay')
     .name('镜头播放（CameraPlay）')
@@ -630,7 +682,7 @@ function guiLightSetting() {
       lightBox.spotLight.position.z = data;
       helperBox.spotLightHelper.helper.update();
     });
-  lightSetting.open();
+  lightSetting.close();
 }
 
 // 环境光设置
@@ -648,7 +700,41 @@ function guiAmbientLightSetting() {
     .onChange((data: any) => {
       lightBox.ambientLight.intensity = data;
     });
-  ambientLightSetting.open();
+  ambientLightSetting.close();
+}
+
+// 后期处理设置
+function guiEffectComposerSetting() {
+  let effectComposerSetting = gui.addFolder('后期处理（Effect Composer Setting）');
+  effectComposerSetting
+    .add(guiParam, 'bloom')
+    .name('泛光（Bloom）')
+    .onChange((data: any) => {
+      if (data) {
+        composer.addPass(unrealBloomPass);
+      } else {
+        composer.removePass(unrealBloomPass);
+      }
+    });
+  effectComposerSetting
+    .add(guiParam, 'bloomStrength', 0, 3)
+    .name('强度（Strength）')
+    .onChange((data: any) => {
+      unrealBloomPass.strength = data;
+    });
+  effectComposerSetting
+    .add(guiParam, 'bloomRadius', 0, 3)
+    .name('散发半径（Radius）')
+    .onChange((data: any) => {
+      unrealBloomPass.radius = data;
+    });
+  effectComposerSetting
+    .add(guiParam, 'bloomThreshold', 0, 1)
+    .name('阈值（Threshold）')
+    .onChange((data: any) => {
+      unrealBloomPass.threshold = data;
+    });
+  effectComposerSetting.close();
 }
 
 function loadAnimationStand() {
@@ -664,6 +750,10 @@ function loadAnimationStand() {
 
 // 加载跳舞动作
 function loadAnimationDance() {
+  // 重新初始化镜头
+  initCamera();
+  initEffectComposer();
+
   const actionUrl = '/animate/极乐净土.vmd';
   // const cameraUrl = '/camera/极乐净土.vmd';
   const cameraUrl = '/camera/極楽净土 镜头 by 永远赤红的幼月.vmd';
@@ -678,8 +768,6 @@ function loadAnimationDance() {
       });
       // 载入相机
       if (cameraUrl) {
-        // 重新初始化镜头
-        initCamera();
         loader.loadAnimation(cameraUrl, camera, (cameraAnimation: any) => {
           MMDCamare = cameraAnimation;
           MMDHelper.add(camera, { animation: cameraAnimation });
@@ -717,7 +805,7 @@ function updateRenderer() {
   }
 
   // 是否开始动作
-  if (MMDCanPlay && playControl.value) {
+  if (MMDCanPlay && guiParam.play) {
     MMDHelper.update(delta);
   }
 
@@ -730,8 +818,10 @@ function updateRenderer() {
     scene.remove(stageMesh);
   }
 
+  // 手动清除渲染目标
+  renderer.clear();
   renderer.render(scene, camera);
-  composer.render();
+  guiParam?.bloom && composer.render();
   stats.update();
 
   // water.material.uniforms['time'].value += 1.0 / 60.0;
@@ -771,14 +861,6 @@ function clearCache() {
   // gui
   gui.destroy();
 }
-
-watch(playControl, (newValue: any, oldValue: any) => {
-  if (newValue) {
-    audio && audio.play();
-  } else {
-    audio && audio.pause();
-  }
-});
 
 onMounted(() => {
   init();
