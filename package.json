@@ -1,5 +1,6 @@
 {
-  "name": "modellibrary",
+  "name": "mmdwebviewer",
+  "homepage": "https://pakho12138.github.io/MMDWebViewer/",
   "version": "0.0.0",
   "private": true,
   "type": "module",

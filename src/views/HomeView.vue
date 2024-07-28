@@ -275,7 +275,7 @@ function initLoader() {
 }
 
 function loadStageModel() {
-  const stageUrl = '/model/夜月蓝/场景.pmx';
+  const stageUrl = './model/夜月蓝/场景.pmx';
   // const stageUrl = '/model/room/Stage0514.pmx';
   loader.load(stageUrl, (mmd: any) => {
     // mmd使用了特殊的材质，无法通过traverse访问到
@@ -367,14 +367,14 @@ function loadCharacterModel() {
   // const modelUrl = '/model/阮·梅/阮·梅1.0.pmx';
   // const modelUrl = '/model/流萤/流萤3.0.pmx';
   // const modelUrl = '/model/藿藿/藿藿4.0.pmx';
-  let modelUrl = '/model/花火/花火3.0.pmx';
+  let modelUrl = './model/花火/花火3.0.pmx';
 
   switch (guiParam?.character) {
     case '花火':
-      modelUrl = '/model/花火/花火3.0.pmx';
+      modelUrl = './model/花火/花火3.0.pmx';
       break;
     case '三月七':
-      modelUrl = '/model/sanyueqi/三月七 1.0.pmx';
+      modelUrl = './model/sanyueqi/三月七 1.0.pmx';
       break;
   }
 
@@ -764,7 +764,7 @@ function guiEffectComposerSetting() {
 }
 
 function loadAnimationStand() {
-  loader.loadAnimation('/animate/站立.vmd', characterModelMesh, (modelAnimation: any) => {
+  loader.loadAnimation('./animate/站立.vmd', characterModelMesh, (modelAnimation: any) => {
     MMDHelper.add(characterModelMesh, {
       animation: modelAnimation,
       physics: true,
@@ -776,10 +776,10 @@ function loadAnimationStand() {
 
 // 加载跳舞动作
 function loadAnimationDance() {
-  const actionUrl = '/animate/极乐净土.vmd';
+  const actionUrl = './animate/极乐净土.vmd';
   // const cameraUrl = '/camera/极乐净土.vmd';
-  const cameraUrl = '/camera/極楽净土 镜头 by 永远赤红的幼月.vmd';
-  const musicUrl = '/music/极乐净土.mp3';
+  const cameraUrl = './camera/極楽净土 镜头 by 永远赤红的幼月.vmd';
+  const musicUrl = './music/极乐净土.mp3';
 
   if (actionUrl) {
     // 载入模型与动画
